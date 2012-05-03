@@ -190,7 +190,7 @@ class KernalMethsOp():
     def _calcScore(self, fdd, name):
         '''
         Given a freq distribution (dictionary) corresponding to the document
-        one wishes to analyze, calculats the inner product of it and the
+        one wishes to analyze, calculates the inner product of it and the
         default set of documents stored in self._vecs.  Terms found in the
         test document, but not in the self._vecs documents are ignored. The
         fraction of such terms, relative to the test doc, is returned.
@@ -212,7 +212,7 @@ class KernalMethsOp():
         for i, doc in enumerate(docs):
             name, text = self._getText(i, doc, TorF)
             if text != []:
-                fdd = self._FDtoDIC(nltk.FreqDist(test))
+                fdd = self._FDtoDIC(nltk.FreqDist(text))
                 sim_scores[name] = nltk.defaultdict(float)
                 if cat=='ALL*': cat = self._vecs.keys()
                 for c in cat:
