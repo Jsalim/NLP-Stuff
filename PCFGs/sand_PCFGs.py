@@ -26,11 +26,17 @@ def CKY_alg(sent,G):
     Sig --> Set of all words in training
     S   --> Start symbol
     R   --> Rule set in grammar
-    q   --> MLE from training (e.g., q(a) = count(a -> b)/count(a))
+        (revR is the reverse lookup for these rules)
+    q   --> MLE from training
+        (e.g., q(a) = count(a -> b)/count(a))
     returns the maximum liklihood parsing...
-    '''
-    
 
+    'sent' is just a list of words
+    '''
+    revR = G['revR']
+    q = G['q']
+
+    tags,scores,bp = intialize_Refs(sent,revR,q)
     '''This determines '''
     for l in range(0,len(sent)-1):
         '''This determines the starting point of the subsentence'''
@@ -40,9 +46,13 @@ def CKY_alg(sent,G):
             #This is the part where we take each of the current
             #level tags and attempt to merge into higher-level
             #tags
-            tags,scores = CKY_meat(i,j,tags,revR,q,scores)
+            tags,scores,bp = CKY_meat(revR,q,
+                                      i,j,
+                                      tags,scores,bp)
+    '''Retreive the MLE solution'''
+    out = rebuildBest(scores,bp)
 
-def CKY_meat(i,j,tags,revR,q,scores):
+def CKY_meat(revR,q,i,j,tags,scores,bp):
     '''
     i is the start of the segment, j is the end of the segment,
     tags is a dictionary with keys i,j such that
@@ -66,32 +76,129 @@ def CKY_meat(i,j,tags,revR,q,scores):
                 Xs = revR[(l,r)]
                 #Need corresponding probability of each Y,Z
                 for x in Xs:
-                    temp[x].append(s,l,r,
-                                   q[x,l,r]*yProb*zProb)
-    #Update everything and spit back out
-    temp_pies = clean_pies
-    scores = update_scores(scores,temp_pies)
-    tags = update_tags(tags,temp_pies)
-    return tags,scores
+                    temp_pies[x].append(s,l,r,
+                                        q[(x,l,r)]*yProb*zProb)
 
-def clean_pies(temp_pies):
+    #Update everything and spit back out
+    return update_refs(i,j,temp_pies,scores,tags,bp)
+
+def initialize_Refs(sent,revR,q):
+    '''Populate bp and scores  with words from the sentence'''
+    tags = initialize_tags(sent,revR)
+    scores = initialize_scores(sent,q)
+    bp = intialize_bp(sent,tags)
+    return scores,tags,bp
+    
+def initialize_scores(sent,q,tags):
+    '''
+    Initialices the scores dictionary with an entry
+    for each (i,i,POS) tuple, i.e., create an entry
+    for every POS tag associated with each word as
+    the probability of that word having that POS
+    '''
+    scores = dict()
+    for i,w in enumerate(sent):
+        for POS in tags[(i,i,w)]:
+            #Set 'r' to '-1' in q for single words
+            scores[(i,i,POS)] = q[(POS,w,-1)]
+    return scores
+
+def initialize_tags(sent,revR):
+    '''
+    Initialise 'tags' with the list of observed
+    POS tags for each word in the sentence.
+    '''
+    tags = dict()
+    for i,w in enumerate(sent):
+        tags[(i,i,w)] = revR[w]
+    return tags
+
+def initialize_bp(sent,tags):
+    '''
+    Initializes bp with the words in sentence;
+    makes an entry for each (word,POS) combo
+    '''
+    bp = dict()
+    for i,w in enumerate(sent):
+        for t in tags[(i,i)]
+            bp[(i,i,t)] = w
+    return bp
+
+def update_refs(i,j,temp_pies,scores,tags,bp):
+    '''
+    Update all persistent reference dicts for
+    traking progress up the tree
+    '''
+    new_pies = best_pies(temp_pies)
+    scores = update_scores(i,j,scores,new_pies)
+    tags = update_tags(i,j,tags,new_pies)
+    bp = update_bp(i,j,bp,new_pies)
+    return tags,scores,bp
+
+def best_pies(temp_pies):
     '''
     Find best X --> YZ transition for each X occuring
     in the temp_pies
     '''
-    return pies
+    new_pies = dict()
+    for X in temp_pies.keys():
+        vals = [v[-1] for v in temp_pies[X]]
+        which = vals.index(max(vals))
+        new_pies[X] = temp_pies[X][which]
+    return new_pies
 
-def update_scores(scores,pies):
+def update_scores(i,j,scores,pies):
     '''
     Add new (i,j,tag) scores
     '''
+    for X in pies.keys():
+        scores[(i,j,X)] = pies[X][-1]
     return scores
 
-def update_tags(tags,pies):
+def update_tags(i,j,tags,pies):
     '''
     Add new (i,j) --> c(tags)
     '''
+    tags[(i,j)] = pies.keys()
     return tags
 
+def update_bp(i,j,bp,pies):
+    '''
+    Add new backpointers to bp
+    '''
+    for X in pies.keys():
+        bp[(i,j,X)] = (pies[X][0],
+                       pies[X][1],
+                       pies[X][2])
+    return bp
+
+def rebuildBest(n,bp):
+    '''
+    Rebuilds the best parse tree from the 'scores'
+    and 'bp' dictionaries, which are the (i,j,X)
+    probabilities and (i,j,X) (s,Y,Z) tuples,
+    respectively
+    '''
+    start = bp[(0,n,'S')]   #This is the prob of the sentence
+    levels = recurDig(bp,0,start[0],n,start[1],start[2])
+    return levels
+
+def recurDig(bp,i,s,j,Y,Z):
+    '''
+    Recursively get the lft and rgt branches of each
+    split down teh parse tree.  Encountering i==j (i.e.,
+    start index equals stop index) bottoms out the tree
+    and returns the word at position i (j) in the
+    sentence along with its best tag.
+    '''
+    if i==j:    #So s==i for word-level combos
+        return (Y,bp[(i,j,Y)])
+    else:
+        lft_d = bp[(i,s,Y)]
+        lft = recurDig(bp,i,lft_d[0],s,lft_d[1],lft_d[2])
+        rgt_d = bp[(s+1,j,Z)]
+        rgt = recurDig(bp,s+1,rgt_d[0],j,rgt_d[1],rgt_d[2])
+        return (lft,rgt)
+    
         
         
