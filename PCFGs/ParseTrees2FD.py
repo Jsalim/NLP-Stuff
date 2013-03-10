@@ -1,20 +1,17 @@
 import nltk
 from collections import defaultdict
+from PCFG_util import simp_tag
 
-def simp_tag(tag):
-    '''Simplifies tags to brown-style'''
-    return nltk.tag.simplify_brown_tag(tag)
-
-def walk_sent_trees(sents,simple=True):
+def getSentTreeFD(sents,simple=True):
     '''
-    Walks the sentence tree
+    Walks the sentence trees
     '''
     tree_list = list()
     for sent in sents:
         sent.chomsky_normal_form()
         tree_list.extend(recur_walk(sent,simple))
-        else:
-    return tree_list
+    treeFD = nltk.FD(tree_list)
+    return treeFD
 
 def recur_walk(tree,simple):
     '''
@@ -38,10 +35,8 @@ def recur_walk(tree,simple):
                          tree[1].node))
     if len(tree[0])>1:
         #Traverse the lft branch if not a word
-        tree_list.extend(recur_walk(tree[0]))
+        tree_list.extend(recur_walk(tree[0],simple))
     if len(tree[1])>1:
         #Ditto, but for rgt
-        tree_list.extend(recur_walk(tree[1]))
+        tree_list.extend(recur_walk(tree[1],simple))
     return tree_list
-
-
