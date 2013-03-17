@@ -2,7 +2,7 @@ import nltk
 from collections import defaultdict
 from PCFG_util import simp_tag
 
-def getSentTreeFD(sents,simple=True):
+def getSentPOSFD(sents,simple=True):
     '''
     Walks the sentence trees
     '''
@@ -10,7 +10,7 @@ def getSentTreeFD(sents,simple=True):
     for sent in sents:
         sent.chomsky_normal_form()
         tree_list.extend(recur_walk(sent,simple))
-    treeFD = nltk.FD(tree_list)
+    treeFD = nltk.FreqDist(tree_list)
     return treeFD
 
 def recur_walk(tree,simple):
@@ -21,7 +21,10 @@ def recur_walk(tree,simple):
     is in Chomsky-normal form. Returns list of
     tuples: (X,Y,Z) where X is the node tag,
     Y is the left branch tag, and Z is the
-    right branch tag.
+    right branch tag.  Also count occurances of
+    X --> (X, '*', '*') tuples.  We don't double-count
+    word POS tags here, because we only add (X,*,*) if
+    X has non-word children.
     '''
     tree_list = list()
     #Grab the current
@@ -29,10 +32,12 @@ def recur_walk(tree,simple):
         tree_list.append((simp_tag(tree.node),
                           simp_tag(tree[0].node),
                           simp_tag(tree[1].node)))
+        tree_list.append((simp_tag(tree.node),'*','*'))
     else:
        tree_list.append((tree.node,
                          tree[0].node,
                          tree[1].node))
+       tree_list.append((tree.node,'*','*'))
     if len(tree[0])>1:
         #Traverse the lft branch if not a word
         tree_list.extend(recur_walk(tree[0],simple))
